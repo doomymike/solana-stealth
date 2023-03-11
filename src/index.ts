@@ -7,13 +7,9 @@ import {
     PublicKey,
     TransactionInstruction,
     Message,
-    VersionedMessage,
-    VersionedTransaction,
-    MessageArgs,
     AccountMeta,
     sendAndConfirmRawTransaction,
     Signer,
-    ConfirmedSignatureInfo,
   } from "@solana/web3.js";
 
   import {createAssociatedTokenAccountInstruction, getAssociatedTokenAddress, createTransferInstruction, transfer} from '@solana/spl-token'
@@ -21,28 +17,12 @@ import {
 import * as ed from '@noble/ed25519';
 import * as base58 from 'bs58';
 import { randomBytesSeed } from '@csquare/random-bytes-seed';
-import { createPrinter, Signature } from "typescript";
 import { BN } from "bn.js";
 //import { dksap, pubsc, pubsp, privsc, privsp, bytes1 } from "./constants.js";
 
 
-const bytes1 = new Uint8Array([54, 160, 60, 31, 94, 93, 163, 118, 126, 47, 127, //from
-223, 96, 134, 231, 31, 171, 171, 98, 63, 245, 109,
-164, 241, 196, 240, 233, 165, 195, 166, 66, 1, 
-
-241,
-51, 62, 197, 32, 71, 245, 174, 48, 162, 115, 166,
-117, 169, 34, 2, 181, 90, 70, 72, 149, 88, 101,
-171, 51, 40, 173, 124, 172, 117, 242, 121]);
-
 const dksap = "3iUBKuvbRMPNLeF33QJHYia7ZBNDWqiccy35MXBRQd1f";
-const pubsp = "AwpRFcxQN8XJscFrtgVbUu7k7AJAHDhHdQA85X6eWbvE";
-const pubsc = "2Q9iYYe4osbQHh3jcL8Kp126iyznu1LAD6LR4N9h8gWQ";
-const privsp = "BBC1qQ992HR4eVC4YtbJrCVxbsppmdhnzysCzmxG2TBh";
-const privsc = "HzWVYni3BAdxjM3rMh9UDQajW2QjXJAtJc1ez8rxXYSA";
-const privsp2 = "3Ev4d1S1qdGqDTwTqng81WNjPXNnDRFWijKRMQGsNxPb";
-const privsc2 = "Dak3m7s2GcmRT26kwP1bnGkP1oGqNqVCBTVGeMVASeGW";
-const ephem = "149a161f31779204faae57d0f73541abd21309783ebb73ecd67c189807403bbf";
+
 
 
 // Convert a byte array to a hex string
@@ -58,10 +38,15 @@ function bytesToHex(bytes: Uint8Array | number[]) {
 
 
 
-
-//3yVqF5nKQQTTYrQFriftSPPq4gERPdSt3xQiq8ZMq3rY?
-
-
+/**
+ * Generates address to send stealth transaction to
+ *
+ * @export
+ * @param {string} pubScanStr
+ * @param {string} pubspendstr
+ * @param {string} ephemprivstr should be from a randomly generated keypair, for security
+ * @return {*}  {Promise<ed.Point>}
+ */
 export async function senderGenAddress (pubScanStr: string, pubspendstr: string, ephemprivstr: string) :Promise<ed.Point> {
 
   let smth = ed.utils.bytesToHex(base58.decode(pubScanStr));
@@ -81,14 +66,19 @@ export async function senderGenAddress (pubScanStr: string, pubspendstr: string,
 }
 
 
-
+/**
+ * Generates scalar key for 
+ *
+ * @export
+ * @param {string} privScanStr
+ * @param {string} privSpendStr
+ * @param {string} ephemStr
+ * @return {*}  {Promise<string>}
+ */
 export async function receiverGenKey(privScanStr: string, privSpendStr: string, ephemStr: string): Promise<string> {
 
-  console.log("genkey");
 
   let ephem = ed.Point.fromHex(ed.utils.bytesToHex(base58.decode(ephemStr)) );
-
-  console.log(base58.encode(ephem.toRawBytes()));
 
   let privScan2 = new BN(base58.decode(privScanStr), 10, "le");
   let privScan = BigInt(privScan2.toString());
@@ -111,12 +101,20 @@ if (reshex.length % 2) {
 }
 
 
-  console.log("done");
   return base58.encode(end.toBuffer("le"));
   
 }
-
-async function receiverGenDest(privScanStr: string, pubSpendStr: string, ephemStr: string): Promise<string> {
+/**
+ * Generates potential destination for a transaction 
+ * Used to detect if transaction was sent towards an individual 
+ *
+ * @export
+ * @param {string} privScanStr
+ * @param {string} pubSpendStr
+ * @param {string} ephemStr
+ * @return {*}  {Promise<string>}
+ */
+export async function receiverGenDest(privScanStr: string, pubSpendStr: string, ephemStr: string): Promise<string> {
 
 
   let ephem = ed.Point.fromHex(ed.utils.bytesToHex(base58.decode(ephemStr)) );
@@ -126,13 +124,10 @@ async function receiverGenDest(privScanStr: string, pubSpendStr: string, ephemSt
   let pubSpendPK = new PublicKey(base58.decode(pubSpendStr));
   let pubSpend = ed.Point.fromHex(bytesToHex(pubSpendPK.toBytes()));
 
-  //let privScan = extendedScan.scalar; 
-  //let privSpend = extendedSpend.scalar;
   
   let dest = await ed.utils.sha512(ephem.multiply(privScan).toRawBytes());
   
   let expac = await ed.utils.getExtendedPublicKey(dest.slice(0,32))
-
   
   let res = expac.point.add(pubSpend);
   
@@ -141,8 +136,15 @@ async function receiverGenDest(privScanStr: string, pubSpendStr: string, ephemSt
   
 }
 
-//signature must be of custom message
-async function receiverGenKeyWithSignature(signature:Uint8Array, ephem: string): Promise<string> {
+/**
+ * Generates scalar key from user signature of custom string
+ *
+ * @export
+ * @param {Uint8Array} signature
+ * @param {string} ephem
+ * @return {*}  {Promise<string>}
+ */
+export async function receiverGenKeyWithSignature(signature:Uint8Array, ephem: string): Promise<string> {
   let hash = await ed.utils.sha512(signature);
   let privsc = await ed.utils.getExtendedPublicKey(hash.slice(0,32));
   let scan = new BN(privsc.scalar.toString(), 10, "le");
@@ -198,16 +200,31 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
    
 }
 
-async function genFullSignature(m:Message, scalar: string) : Promise<Buffer>{
-  let randNum = await genSignature(m,scalar,scalar);
+/**
+ * Generates a signature for a message given a stealth address' scalar key
+ *
+ * @export
+ * @param {Message} m
+ * @param {string} scalarkey
+ * @return {*}  {Promise<Buffer>}
+ */
+export async function genFullSignature(m:Message, scalarkey: string) : Promise<Buffer>{
+  let randNum = await genSignature(m,scalarkey,scalarkey);
 
   let x = randomBytesSeed(32, randNum);
   
 
-  return genSignature(m, scalar, base58.encode(x));
+  return genSignature(m, scalarkey, base58.encode(x));
 }
-
-async function signTransaction(tx:Transaction, scalarKey: string ) :Promise<Transaction>{
+/**
+ * Signs a transaction given a stealth address' scalar key 
+ *
+ * @export
+ * @param {Transaction} tx
+ * @param {string} scalarKey
+ * @return {*}  {Promise<Transaction>}
+ */
+export async function signTransaction(tx:Transaction, scalarKey: string ) :Promise<Transaction>{
   
   let sc = new BN(base58.decode(scalarKey), 10, "le"); //base doesn't matter
   let scalar = BigInt(sc.toString());
@@ -219,8 +236,17 @@ async function signTransaction(tx:Transaction, scalarKey: string ) :Promise<Tran
   tx.addSignature(new PublicKey(pubkey.toRawBytes()), sig);
   return tx;
 }
-
-async function stealthTransferIx(source: PublicKey, pubScan : string, pubSpend: string, amount: number, ): Promise<TransactionInstruction>{
+/**
+ * Create instruction to transfer to a stealth account
+ *
+ * @export
+ * @param {PublicKey} source
+ * @param {string} pubScan
+ * @param {string} pubSpend
+ * @param {number} amount
+ * @return {*}  {Promise<TransactionInstruction>}
+ */
+export async function stealthTransferIx(source: PublicKey, pubScan : string, pubSpend: string, amount: number, ): Promise<TransactionInstruction>{
   
   let eph = ed.utils.randomPrivateKey();
   
@@ -240,8 +266,18 @@ async function stealthTransferIx(source: PublicKey, pubScan : string, pubSpend: 
   tix.keys.push(ephemmeta, dksapmeta);
   return tix;
 }
-
-async function stealthTransfer(connection: Connection,source: Keypair, pubScan : string, pubSpend: string, amount: number ): Promise<string>{
+/**
+ * sends lamports to a recipient's stealth account
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {Keypair} source 
+ * @param {string} pubScan 
+ * @param {string} pubSpend
+ * @param {number} amount  amount in lamports to transfer 
+ * @return {*}  {Promise<string>} returns result of send and confirm transaction
+ */
+export async function stealthTransfer(connection: Connection,source: Keypair, pubScan : string, pubSpend: string, amount: number ): Promise<string>{
   
   let tix = await stealthTransferIx(source.publicKey, pubScan, pubSpend, amount);
   let tx = new Transaction();
@@ -250,8 +286,19 @@ async function stealthTransfer(connection: Connection,source: Keypair, pubScan :
   let txid = await sendAndConfirmTransaction(connection, tx, [source]);
   return txid;
 }
-
-async function stealthTokenTransfer(connection: Connection, source: Keypair, token: PublicKey, pubScan : string, pubSpend: string, amount: number ): Promise<string>{
+/**
+ * Sends tokens to a stealth account
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {Keypair} source not the token account
+ * @param {PublicKey} token
+ * @param {string} pubScan
+ * @param {string} pubSpend
+ * @param {number} amount
+ * @return {*}  {Promise<string>}
+ */
+export async function stealthTokenTransfer(connection: Connection, source: Keypair, token: PublicKey, pubScan : string, pubSpend: string, amount: number ): Promise<string>{
   
   let eph = ed.utils.randomPrivateKey();
   
@@ -286,8 +333,21 @@ async function stealthTokenTransfer(connection: Connection, source: Keypair, tok
   return txid;
 }
 
-//source is not the token account
-async function stealthTokenTransfer2(connection: Connection,payer: Signer, source: PublicKey, token: PublicKey, pubScan : string, pubSpend: string, owner: Signer, amount: number ): Promise<string>{
+/**
+ * Sends tokens to a recipient's stealth account
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {Signer} payer
+ * @param {PublicKey} source
+ * @param {PublicKey} token not the associated token account (currently)
+ * @param {string} pubScan
+ * @param {string} pubSpend
+ * @param {Signer} owner
+ * @param {number} amount
+ * @return {*}  {Promise<string>}
+ */
+export async function stealthTokenTransfer2(connection: Connection,payer: Signer, source: PublicKey, token: PublicKey, pubScan : string, pubSpend: string, owner: Signer, amount: number ): Promise<string>{
   
   let eph = ed.utils.randomPrivateKey();
   
@@ -323,8 +383,18 @@ isWritable: false};
   return txid;
 }
 
-//note: this should not be used to transfer to your main account
-async function sendFromStealth(connection: Connection, key: string, dest: PublicKey, amount: number ): Promise<string> {
+/**
+ * Sends lamports from a stealth account given a scalar key
+ * Note: sending directly to your main account is highly discouraged for security purposes
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {string} key
+ * @param {PublicKey} dest
+ * @param {number} amount
+ * @return {*}  {Promise<string>}
+ */
+export async function sendFromStealth(connection: Connection, key: string, dest: PublicKey, amount: number ): Promise<string> {
   let keyBN = new BN(base58.decode(key), 10, "le");
   let keyscalar = BigInt(keyBN.toString());
   let pub = ed.Point.BASE.multiply(keyscalar);
@@ -350,10 +420,22 @@ async function sendFromStealth(connection: Connection, key: string, dest: Public
 //note: this should not be used to transfer to your main account
 //dest is the associated token account
 // use signers?
-async function tokenFromStealth(connection: Connection, key: string, token: PublicKey, dest: PublicKey, amount: number): Promise<string> {
+
+/**
+ * Sends tokens from a stealth account given a scalar key
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {string} key
+ * @param {PublicKey} token
+ * @param {PublicKey} dest
+ * @param {number} amount
+ * @return {*}  {Promise<string>}
+ */
+export async function tokenFromStealth(connection: Connection, key: string, token: PublicKey, dest: PublicKey, amount: number): Promise<string> {
   let keyBN = new BN(base58.decode(key), 10, "le");
   let keyscalar = BigInt(keyBN.toString());
-  //console.log(base58.encode(keyBN.toBuffer("le")));
+  
   let pub = ed.Point.BASE.multiply(keyscalar);
   let pk = new PublicKey(pub.toRawBytes());
 
@@ -377,8 +459,14 @@ async function tokenFromStealth(connection: Connection, key: string, token: Publ
 const fun = (value: PublicKey) => {
   return value.equals(new PublicKey(dksap));
 }
-
-class scanInfo {
+/**
+ * Class designed to store information when scanning for transactions
+ * token will only be set if it is a token transfer
+ *
+ * @export
+ * @class scanInfo
+ */
+export class scanInfo {
   account: string;
   ephem: string;
   token?: string;
@@ -391,7 +479,17 @@ class scanInfo {
 
 }
 
-async function scan_check(connection: Connection, sig: string,privScanStr : string, pubSpendStr: string ): Promise<scanInfo[]> {
+/**
+ * Checks whether a transaction was sent to the specific user
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {string} sig
+ * @param {string} privScanStr
+ * @param {string} pubSpendStr
+ * @return {*}  {Promise<scanInfo[]>}
+ */
+export async function scan_check(connection: Connection, sig: string,privScanStr : string, pubSpendStr: string ): Promise<scanInfo[]> {
   let accts: scanInfo[] = [];
   let tx = await connection.getTransaction(sig);
     if(!tx) return accts;
@@ -429,16 +527,22 @@ async function scan_check(connection: Connection, sig: string,privScanStr : stri
 
       }
       
-      //console.log(mes.instructions[j].accounts);
     }
     return accts;
 } 
-
+/**
+ * Looks through previous transactions and returns those sent to a specific user
+ * Note: this is not the optimal way, given that it only checks the last ___________________________________ß≈∂çƒ©∫˜˙∆µ
+ *
+ * @param {Connection} connection
+ * @param {string} privScanStr
+ * @param {string} pubSpendStr
+ * @return {*}  {Promise<scanInfo[]>}
+ */
 async function scan(connection:Connection, privScanStr : string, pubSpendStr: string): Promise<scanInfo[]> {
   let accts: scanInfo[] = [];
   let res = await connection.getConfirmedSignaturesForAddress2(new PublicKey(dksap));
   for (let i = 0; i < res.length; i++){
-    //console.log("for loop"); 
     let sig = res[i];
     accts = accts.concat( await scan_check(connection, sig.signature, privScanStr, pubSpendStr));
     
