@@ -28,6 +28,44 @@ import { BN } from 'bn.js';
 const dksap = '3iUBKuvbRMPNLeF33QJHYia7ZBNDWqiccy35MXBRQd1f';
 
 /**
+ * Class designed to store information when scanning for transactions
+ * token will only be set if it is a token transfer
+ *
+ * @export
+ * @class ScanInfo
+ */
+export class ScanInfo {
+  account: string;
+  ephem: string;
+  token?: string;
+
+  constructor(acct: string, eph: string, tok?: string) {
+    this.account = acct;
+    this.ephem = eph;
+    this.token = tok;
+  }
+}
+/**
+ * Public and private keys for stealth accounts
+ *
+ * @export
+ * @class StealthKeys
+ */
+export class StealthKeys {
+  pubScan: string;
+  pubSpend: string;
+  privScan: string;
+  privSpend: string;
+  constructor(pubSc: string, pubSp: string, privSc: string, privSp: string) {
+    this.pubScan = pubSc;
+    this.pubSpend = pubSp;
+    this.privScan = privSp;
+    this.privSpend = privSp;
+  }
+
+}
+
+/**
  * Generates address to send stealth transaction to
  *
  * @export
@@ -117,6 +155,35 @@ export async function receiverGenDest(privScanStr: string, pubSpendStr: string, 
 }
 
 /**
+ * Generate scan and spend keys from signature 
+ *
+ * @export
+ * @param {Uint8Array} signature
+ * @return {*}  {Promise<string[]>}
+ */
+export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
+
+  const hash = await ed.utils.sha512(signature);
+  const privsc = await ed.utils.getExtendedPublicKey(hash.slice(0, 32));
+  const privscStr = base58.encode(ed.utils.hexToBytes(privsc.scalar.toString(16)));
+  const scanScal = new BN(privsc.scalar.toString(), 10, 'le');
+  const scanPub = ed.Point.BASE.multiply(BigInt(scanScal.toString()));
+  const privsp = await ed.utils.getExtendedPublicKey(hash.slice(32, 64));
+  const privspStr = base58.encode(ed.utils.hexToBytes(privsp.scalar.toString(16)));
+  const spendScal = new BN(privsp.scalar.toString(), 10, 'le');
+  const spendPub = ed.Point.BASE.multiply(BigInt(spendScal.toString()));
+  const keys: StealthKeys =
+  {
+    pubScan: base58.encode(scanPub.toRawBytes()),
+    pubSpend: base58.encode(spendPub.toRawBytes()),
+    privScan: privscStr,
+    privSpend: privspStr
+  };
+
+  return keys;
+}
+
+/**
  * Generates scalar key from user signature of custom string
  *
  * @export
@@ -125,19 +192,23 @@ export async function receiverGenDest(privScanStr: string, pubSpendStr: string, 
  * @return {*}  {Promise<string>}
  */
 export async function receiverGenKeyWithSignature(signature: Uint8Array, ephem: string): Promise<string> {
-  const hash = await ed.utils.sha512(signature);
-  const privsc = await ed.utils.getExtendedPublicKey(hash.slice(0, 32));
-  const scanScal = new BN(privsc.scalar.toString(), 10, 'le');
-  const privsp = await ed.utils.getExtendedPublicKey(hash.slice(32, 64));
-  const spendScal = new BN(privsp.scalar.toString(), 10, 'le');
+  const keys: StealthKeys = await genKeys(signature);
 
   return receiverGenKey(
-    base58.encode(ed.utils.hexToBytes(scanScal.toString('hex'))),
-    base58.encode(ed.utils.hexToBytes(spendScal.toString('hex'))),
+    keys.privScan,
+    keys.privSpend,
     ephem,
   );
 }
 
+/**
+ * Performs signature generation algorithm
+ *
+ * @param {Message} m
+ * @param {string} scalar
+ * @param {string} scalar2
+ * @return {*}  {Promise<Buffer>}
+ */
 async function genSignature(m: Message, scalar: string, scalar2: string): Promise<Buffer> {
   const mes = m.serialize();
 
@@ -172,7 +243,7 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
   const bb = new BN(bigs.toString());
 
 
-  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer,'le')]);
+  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer, 'le')]);
 
   return sig;
 }
@@ -210,6 +281,7 @@ export async function signTransaction(tx: Transaction, scalarKey: string): Promi
   tx.addSignature(new PublicKey(pubkey.toRawBytes()), sig);
   return tx;
 }
+
 /**
  * Create instruction to transfer to a stealth account
  *
@@ -269,6 +341,7 @@ export async function stealthTransfer(
   const txid = await sendAndConfirmTransaction(connection, tx, [source]);
   return txid;
 }
+
 /**
  * Sends tokens to a stealth account
  *
@@ -359,8 +432,6 @@ export async function stealthTokenTransferTransaction(
 
   const tx = new Transaction();
   tx.add(createix).add(tix);
-
-  //const txid = sendAndConfirmTransaction(connection, tx, [source]);
 
   return tx;
 }
@@ -462,7 +533,6 @@ export async function stealthTokenTransferTransaction2(
   const tx = new Transaction();
   tx.add(createix).add(tix);
 
-  //const txid = sendAndConfirmTransaction(connection, tx, [payer, owner]);
 
   return tx;
 }
@@ -504,10 +574,6 @@ export async function sendFromStealth(
   const txid = sendAndConfirmRawTransaction(connection, tx.serialize());
   return txid;
 }
-
-// note: this should not be used to transfer to your main account
-// dest is the associated token account
-// use signers?
 
 /**
  * Sends tokens from a stealth account given a scalar key
@@ -552,24 +618,7 @@ export async function tokenFromStealth(
 const fun = (value: PublicKey) => {
   return value.equals(new PublicKey(dksap));
 };
-/**
- * Class designed to store information when scanning for transactions
- * token will only be set if it is a token transfer
- *
- * @export
- * @class ScanInfo
- */
-export class ScanInfo {
-  account: string;
-  ephem: string;
-  token?: string;
 
-  constructor(acct: string, eph: string, tok?: string) {
-    this.account = acct;
-    this.ephem = eph;
-    this.token = tok;
-  }
-}
 
 /**
  * Checks whether a transaction was sent to the specific user
