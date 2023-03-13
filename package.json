@@ -1,6 +1,6 @@
 {
   "name": "solana-stealth",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Stealth support for solana",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
