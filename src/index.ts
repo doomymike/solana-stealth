@@ -65,6 +65,15 @@ export class StealthKeys {
 
 }
 
+function bigIntToHex(bn: BigInt): string {
+  let hex: string = bn.toString(16);
+  if (hex.length % 2) {
+    hex = '0' + hex;
+  }
+  return hex;
+}
+
+
 /**
  * Generates address to send stealth transaction to
  *
@@ -165,11 +174,11 @@ export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
 
   const hash = await ed.utils.sha512(signature);
   const privsc = await ed.utils.getExtendedPublicKey(hash.slice(0, 32));
-  const privscStr = base58.encode(ed.utils.hexToBytes(privsc.scalar.toString(16)));
+  const privscStr = base58.encode(ed.utils.hexToBytes(bigIntToHex(privsc.scalar)));
   const scanScal = new BN(privsc.scalar.toString(), 10, 'le');
   const scanPub = ed.Point.BASE.multiply(BigInt(scanScal.toString()));
   const privsp = await ed.utils.getExtendedPublicKey(hash.slice(32, 64));
-  const privspStr = base58.encode(ed.utils.hexToBytes(privsp.scalar.toString(16)));
+  const privspStr = base58.encode(ed.utils.hexToBytes(bigIntToHex(privsp.scalar)));
   const spendScal = new BN(privsp.scalar.toString(), 10, 'le');
   const spendPub = ed.Point.BASE.multiply(BigInt(spendScal.toString()));
   const keys: StealthKeys =
