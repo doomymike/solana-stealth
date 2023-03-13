@@ -1,6 +1,6 @@
 {
   "name": "solana-stealth",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Stealth support for solana",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -46,5 +46,7 @@
     "sha512-crypt-ts": "^0.1.27",
     "typescript": "^4.9.5"
   },
-  "files": ["lib/**/*"]
+  "files": [
+    "lib/**/*"
+  ]
 }
