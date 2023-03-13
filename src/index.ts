@@ -88,7 +88,6 @@ export async function receiverGenKey(privScanStr: string, privSpendStr: string, 
     reshex = '0' + reshex;
   }
   return base58.encode(end.toArrayLike(Buffer, 'le'));
-  //return base58.encode(end.toBuffer('le'));
 }
 /**
  * Generates potential destination for a transaction
@@ -173,7 +172,6 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
   const bb = new BN(bigs.toString());
 
 
-  //const sig = Buffer.concat([pointr.toRawBytes(), bb.toBuffer('le')]);
   const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer,'le')]);
 
   return sig;
@@ -321,6 +319,55 @@ export async function stealthTokenTransfer(
 }
 
 /**
+ * Sends tokens to a stealth account
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {Keypair} source not the token account
+ * @param {PublicKey} token
+ * @param {string} pubScan
+ * @param {string} pubSpend
+ * @param {number} amount
+ * @return {*}  {Promise<Transaction>}
+ */
+export async function stealthTokenTransferTransaction(
+  connection: Connection,
+  source: Keypair,
+  token: PublicKey,
+  pubScan: string,
+  pubSpend: string,
+  amount: number,
+): Promise<Transaction> {
+  const eph = ed.utils.randomPrivateKey();
+
+  const dest = await senderGenAddress(pubScan, pubSpend, base58.encode(eph));
+  const destPub = new PublicKey(dest.toRawBytes());
+  const dksapmeta: AccountMeta = { pubkey: new PublicKey(dksap), isSigner: false, isWritable: false };
+  const ephemmeta: AccountMeta = {
+    pubkey: new PublicKey(await ed.getPublicKey(eph)),
+    isSigner: false,
+    isWritable: false,
+  };
+  const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
+
+  const tokenDest = await getAssociatedTokenAddress(token, destPub);
+  const createix = createAssociatedTokenAccountInstruction(source.publicKey, tokenDest, destPub, token);
+
+  const fromToken = await getAssociatedTokenAddress(token, source.publicKey);
+
+  const tix = createTransferInstruction(fromToken, tokenDest, source.publicKey, amount);
+
+  tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
+
+  const tx = new Transaction();
+  tx.add(createix).add(tix);
+
+  //const txid = sendAndConfirmTransaction(connection, tx, [source]);
+
+  return tx;
+}
+
+/**
  * Sends tokens to a recipient's stealth account
  *
  * @export
@@ -371,6 +418,59 @@ export async function stealthTokenTransfer2(
   const txid = sendAndConfirmTransaction(connection, tx, [payer, owner]);
 
   return txid;
+}
+
+/**
+ * Sends tokens to a recipient's stealth account
+ *
+ * @export
+ * @param {Connection} connection
+ * @param {Signer} payer
+ * @param {PublicKey} source
+ * @param {PublicKey} token not the associated token account (currently)
+ * @param {string} pubScan
+ * @param {string} pubSpend
+ * @param {Signer} owner
+ * @param {number} amount
+ * @return {*}  {Promise<Transaction>}
+ */
+export async function stealthTokenTransferTransaction2(
+  connection: Connection,
+  payer: Signer,
+  source: PublicKey,
+  token: PublicKey,
+  pubScan: string,
+  pubSpend: string,
+  owner: Signer,
+  amount: number,
+): Promise<Transaction> {
+  const eph = ed.utils.randomPrivateKey();
+
+  const dest = await senderGenAddress(pubScan, pubSpend, base58.encode(eph));
+  const destPub = new PublicKey(dest.toRawBytes());
+  const dksapmeta: AccountMeta = { pubkey: new PublicKey(dksap), isSigner: false, isWritable: false };
+  const ephemmeta: AccountMeta = {
+    pubkey: new PublicKey(await ed.getPublicKey(eph)),
+    isSigner: false,
+    isWritable: false,
+  };
+  const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
+
+  const tokenDest = await getAssociatedTokenAddress(token, destPub);
+  const createix = createAssociatedTokenAccountInstruction(payer.publicKey, tokenDest, destPub, token);
+
+  const fromToken = await getAssociatedTokenAddress(token, source);
+
+  const tix = createTransferInstruction(fromToken, tokenDest, source, amount);
+
+  tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
+
+  const tx = new Transaction();
+  tx.add(createix).add(tix);
+
+  //const txid = sendAndConfirmTransaction(connection, tx, [payer, owner]);
+
+  return tx;
 }
 
 /**
