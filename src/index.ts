@@ -322,8 +322,7 @@ export async function stealthTokenTransfer(
  * Sends tokens to a stealth account
  *
  * @export
- * @param {Connection} connection
- * @param {Keypair} source not the token account
+ * @param {PublicKey} source not the token account
  * @param {PublicKey} token
  * @param {string} pubScan
  * @param {string} pubSpend
@@ -331,8 +330,7 @@ export async function stealthTokenTransfer(
  * @return {*}  {Promise<Transaction>}
  */
 export async function stealthTokenTransferTransaction(
-  connection: Connection,
-  source: Keypair,
+  source: PublicKey,
   token: PublicKey,
   pubScan: string,
   pubSpend: string,
@@ -351,11 +349,11 @@ export async function stealthTokenTransferTransaction(
   const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
 
   const tokenDest = await getAssociatedTokenAddress(token, destPub);
-  const createix = createAssociatedTokenAccountInstruction(source.publicKey, tokenDest, destPub, token);
+  const createix = createAssociatedTokenAccountInstruction(source, tokenDest, destPub, token);
 
-  const fromToken = await getAssociatedTokenAddress(token, source.publicKey);
+  const fromToken = await getAssociatedTokenAddress(token, source);
 
-  const tix = createTransferInstruction(fromToken, tokenDest, source.publicKey, amount);
+  const tix = createTransferInstruction(fromToken, tokenDest, source, amount);
 
   tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
 
@@ -424,24 +422,20 @@ export async function stealthTokenTransfer2(
  * Sends tokens to a recipient's stealth account
  *
  * @export
- * @param {Connection} connection
- * @param {Signer} payer
+ * @param {PublicKey} payer
  * @param {PublicKey} source
  * @param {PublicKey} token not the associated token account (currently)
  * @param {string} pubScan
  * @param {string} pubSpend
- * @param {Signer} owner
  * @param {number} amount
  * @return {*}  {Promise<Transaction>}
  */
 export async function stealthTokenTransferTransaction2(
-  connection: Connection,
-  payer: Signer,
+  payer: PublicKey,
   source: PublicKey,
   token: PublicKey,
   pubScan: string,
   pubSpend: string,
-  owner: Signer,
   amount: number,
 ): Promise<Transaction> {
   const eph = ed.utils.randomPrivateKey();
@@ -457,7 +451,7 @@ export async function stealthTokenTransferTransaction2(
   const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
 
   const tokenDest = await getAssociatedTokenAddress(token, destPub);
-  const createix = createAssociatedTokenAccountInstruction(payer.publicKey, tokenDest, destPub, token);
+  const createix = createAssociatedTokenAccountInstruction(payer, tokenDest, destPub, token);
 
   const fromToken = await getAssociatedTokenAddress(token, source);
 
