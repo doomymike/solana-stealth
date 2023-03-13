@@ -175,11 +175,11 @@ export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
   const hash = await ed.utils.sha512(signature);
   const privsc = await ed.utils.getExtendedPublicKey(hash.slice(0, 32));
   const privscStr = base58.encode(ed.utils.hexToBytes(bigIntToHex(privsc.scalar)));
-  const scanScal = new BN(privsc.scalar.toString(), 10, 'le');
+  const scanScal = new BN(privsc.scalar.toString());
   const scanPub = ed.Point.BASE.multiply(BigInt(scanScal.toString()));
   const privsp = await ed.utils.getExtendedPublicKey(hash.slice(32, 64));
   const privspStr = base58.encode(ed.utils.hexToBytes(bigIntToHex(privsp.scalar)));
-  const spendScal = new BN(privsp.scalar.toString(), 10, 'le');
+  const spendScal = new BN(privsp.scalar.toString());
   const spendPub = ed.Point.BASE.multiply(BigInt(spendScal.toString()));
   const keys: StealthKeys =
   {
