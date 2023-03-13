@@ -87,8 +87,8 @@ export async function receiverGenKey(privScanStr: string, privSpendStr: string, 
   if (reshex.length % 2) {
     reshex = '0' + reshex;
   }
-
-  return base58.encode(end.toBuffer('le'));
+  return base58.encode(end.toArrayLike(Buffer, 'le'));
+  //return base58.encode(end.toBuffer('le'));
 }
 /**
  * Generates potential destination for a transaction
@@ -172,7 +172,9 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
   bigs = ed.utils.mod(bigs, ed.CURVE.l);
   const bb = new BN(bigs.toString());
 
-  const sig = Buffer.concat([pointr.toRawBytes(), bb.toBuffer('le')]);
+
+  //const sig = Buffer.concat([pointr.toRawBytes(), bb.toBuffer('le')]);
+  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer,'le')]);
 
   return sig;
 }
@@ -536,7 +538,7 @@ export async function scan_check(
  * @param {string} pubSpendStr
  * @return {*}  {Promise<ScanInfo[]>}
  */
-async function scan(connection: Connection, privScanStr: string, pubSpendStr: string): Promise<ScanInfo[]> {
+export async function scan(connection: Connection, privScanStr: string, pubSpendStr: string): Promise<ScanInfo[]> {
   let accts: ScanInfo[] = [];
   const res = await connection.getConfirmedSignaturesForAddress2(new PublicKey(dksap));
   for (const sig of res) {
