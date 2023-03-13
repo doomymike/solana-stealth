@@ -185,8 +185,8 @@ export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
   {
     pubScan: base58.encode(scanPub.toRawBytes()),
     pubSpend: base58.encode(spendPub.toRawBytes()),
-    privScan: privscStr,
-    privSpend: privspStr
+    privScan: base58.encode(hash.slice(0,32)),
+    privSpend: base58.encode(hash.slice(32,64))
   };
 
   return keys;
