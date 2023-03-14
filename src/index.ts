@@ -578,7 +578,7 @@ export async function sendFromStealth(
 
   let a: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: b, lastValidBlockHeight: bhash.lastValidBlockHeight};
 
-  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), a);
+  const txid = sendAndConfirmRawTransaction(connection, tx.serialize());
   return txid;
 }
 
