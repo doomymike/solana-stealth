@@ -47,7 +47,7 @@ export class ScanInfo {
 }
 /**
  * Public and private keys for stealth accounts
- *
+ * Note that private keys are in little endian representations
  * @export
  * @class StealthKeys
  */
@@ -185,8 +185,8 @@ export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
   {
     pubScan: base58.encode(scanPub.toRawBytes()),
     pubSpend: base58.encode(spendPub.toRawBytes()),
-    privScan: base58.encode(hash.slice(0,32)),
-    privSpend: base58.encode(hash.slice(32,64))
+    privScan: base58.encode(scanScal.toArrayLike(Buffer,"le")),
+    privSpend: base58.encode(spendScal.toArrayLike(Buffer,"le")),
   };
 
   return keys;
