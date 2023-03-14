@@ -10,8 +10,6 @@ import {
   AccountMeta,
   sendAndConfirmRawTransaction,
   Signer,
-  GetVersionedTransactionConfig,
-  VersionedTransactionResponse,
   BlockheightBasedTransactionConfirmationStrategy,
 } from '@solana/web3.js';
 
@@ -568,17 +566,16 @@ export async function sendFromStealth(
 
   const tx = new Transaction();
   tx.add(tix);
-  let bhash = await connection.getLatestBlockhash();
+  const bhash = await connection.getLatestBlockhash();
   tx.recentBlockhash = bhash.blockhash;
   tx.feePayer = pk;
 
   await signTransaction(tx, key);
   if(!tx.signature) return "";
-  let b = base58.encode(tx.signature);
 
-  let a: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: b, lastValidBlockHeight: bhash.lastValidBlockHeight};
+  const strategy: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: base58.encode(tx.signature), lastValidBlockHeight: bhash.lastValidBlockHeight};
 
-  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), a);
+  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), strategy);
   return txid;
 }
 
@@ -613,18 +610,17 @@ export async function tokenFromStealth(
 
   const tx = new Transaction();
   tx.add(tix);
-  let bhash = await connection.getLatestBlockhash();
+  const bhash = await connection.getLatestBlockhash();
 
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
   tx.feePayer = pk;
 
   await signTransaction(tx, key);
   if(!tx.signature) return "";
-  let b = base58.encode(tx.signature);
 
-  let a: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: b, lastValidBlockHeight: bhash.lastValidBlockHeight};
+  const strategy: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: base58.encode(tx.signature), lastValidBlockHeight: bhash.lastValidBlockHeight};
 
-  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), a);
+  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), strategy);
   return txid;
 }
 
@@ -651,7 +647,7 @@ export async function scan_check(
   const accts: ScanInfo[] = [];
   const a = {commitment: 'confirmed', maxSupportedTransactionVersion: 0}; 
   const tx = await connection.getTransaction(sig ,{commitment: 'confirmed', maxSupportedTransactionVersion: 0});
-  //const tx = await connection.getTransaction(sig);
+  // const tx = await connection.getTransaction(sig);
   if (!tx) return accts;
 
 
@@ -659,39 +655,8 @@ export async function scan_check(
 
   const dks = new PublicKey(dksap);
   const mes = tx.transaction.message;
-  //const pos = mes.accountKeys.findIndex(fun);
+  // const pos = mes.accountKeys.findIndex(fun);
   const pos = mes.getAccountKeys().staticAccountKeys.findIndex(fun);
-  
-
-
-
-
-  // for (const instr of mes.instructions) {
-  //   if (!instr.accounts.includes(pos)) {
-  //     continue;
-  //   }
-
-  //   // sol transaction
-  //   // format is source, dest, ephem, dksap
-  //   if (instr.accounts.length === 4) {
-  //     const ephem = mes.accountKeys[instr.accounts[2]];
-  //     const dest = await receiverGenDest(privScanStr, pubSpendStr, ephem.toBase58());
-  //     if (dest === mes.accountKeys[instr.accounts[1]].toBase58()) {
-  //       accts.push({ account: dest, ephem: ephem.toBase58() });
-  //     }
-  //   }
-
-  //   // token transaction
-  //   // format is source token account, dest, source,  ephem, token, dksap
-  //   else if (instr.accounts.length === 6) {
-  //     const ephem = mes.accountKeys[instr.accounts[3]];
-  //     const dest = await receiverGenDest(privScanStr, pubSpendStr, ephem.toBase58());
-  //     const tokenDest = await getAssociatedTokenAddress(mes.accountKeys[instr.accounts[4]], new PublicKey(dest));
-  //     if (tokenDest.toBase58() === mes.accountKeys[instr.accounts[1]].toBase58()) {
-  //       accts.push({ account: dest, ephem: ephem.toBase58(), token: mes.accountKeys[instr.accounts[4]].toBase58() });
-  //     }
-  //   }
-  // }
 
   for (const instr of mes.compiledInstructions) {
     if (!instr.accountKeyIndexes.includes(pos)) {
