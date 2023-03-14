@@ -650,40 +650,93 @@ export async function scan_check(
 ): Promise<ScanInfo[]> {
   const accts: ScanInfo[] = [];
   const a = {commitment: 'confirmed', maxSupportedTransactionVersion: 0}; 
-  //const tx = await connection.getTransaction(sig ,{commitment: 'confirmed', maxSupportedTransactionVersion: 0});
-  const tx = await connection.getTransaction(sig);
+  const tx = await connection.getTransaction(sig ,{commitment: 'confirmed', maxSupportedTransactionVersion: 0});
+  //const tx = await connection.getTransaction(sig);
   if (!tx) return accts;
+
+
+
 
   const dks = new PublicKey(dksap);
   const mes = tx.transaction.message;
-  const pos = mes.accountKeys.findIndex(fun);
+  //const pos = mes.accountKeys.findIndex(fun);
+  const pos = mes.getAccountKeys().staticAccountKeys.findIndex(fun);
+  
 
-  for (const instr of mes.instructions) {
-    if (!instr.accounts.includes(pos)) {
+
+
+
+  // for (const instr of mes.instructions) {
+  //   if (!instr.accounts.includes(pos)) {
+  //     continue;
+  //   }
+
+  //   // sol transaction
+  //   // format is source, dest, ephem, dksap
+  //   if (instr.accounts.length === 4) {
+  //     const ephem = mes.accountKeys[instr.accounts[2]];
+  //     const dest = await receiverGenDest(privScanStr, pubSpendStr, ephem.toBase58());
+  //     if (dest === mes.accountKeys[instr.accounts[1]].toBase58()) {
+  //       accts.push({ account: dest, ephem: ephem.toBase58() });
+  //     }
+  //   }
+
+  //   // token transaction
+  //   // format is source token account, dest, source,  ephem, token, dksap
+  //   else if (instr.accounts.length === 6) {
+  //     const ephem = mes.accountKeys[instr.accounts[3]];
+  //     const dest = await receiverGenDest(privScanStr, pubSpendStr, ephem.toBase58());
+  //     const tokenDest = await getAssociatedTokenAddress(mes.accountKeys[instr.accounts[4]], new PublicKey(dest));
+  //     if (tokenDest.toBase58() === mes.accountKeys[instr.accounts[1]].toBase58()) {
+  //       accts.push({ account: dest, ephem: ephem.toBase58(), token: mes.accountKeys[instr.accounts[4]].toBase58() });
+  //     }
+  //   }
+  // }
+
+  for (const instr of mes.compiledInstructions) {
+    if (!instr.accountKeyIndexes.includes(pos)) {
       continue;
     }
 
     // sol transaction
     // format is source, dest, ephem, dksap
-    if (instr.accounts.length === 4) {
-      const ephem = mes.accountKeys[instr.accounts[2]];
+    if (instr.accountKeyIndexes.length === 4) {
+      const ephem = mes.getAccountKeys().get(instr.accountKeyIndexes[2]);
+      if (!ephem) continue;
       const dest = await receiverGenDest(privScanStr, pubSpendStr, ephem.toBase58());
-      if (dest === mes.accountKeys[instr.accounts[1]].toBase58()) {
+      const dest2 = mes.getAccountKeys().get(instr.accountKeyIndexes[1]);
+      if (!dest2) continue;
+      if (dest === dest2.toBase58()) {
         accts.push({ account: dest, ephem: ephem.toBase58() });
       }
     }
 
     // token transaction
     // format is source token account, dest, source,  ephem, token, dksap
-    else if (instr.accounts.length === 6) {
-      const ephem = mes.accountKeys[instr.accounts[3]];
+    else if (instr.accountKeyIndexes.length === 6) {
+      const ephem = mes.getAccountKeys().get(instr.accountKeyIndexes[3]);
+      if (!ephem) continue;
       const dest = await receiverGenDest(privScanStr, pubSpendStr, ephem.toBase58());
-      const tokenDest = await getAssociatedTokenAddress(mes.accountKeys[instr.accounts[4]], new PublicKey(dest));
-      if (tokenDest.toBase58() === mes.accountKeys[instr.accounts[1]].toBase58()) {
-        accts.push({ account: dest, ephem: ephem.toBase58(), token: mes.accountKeys[instr.accounts[4]].toBase58() });
+      const dest2 = mes.getAccountKeys().get(instr.accountKeyIndexes[4]);
+      if (!dest2) continue;
+      const tokenDest = await getAssociatedTokenAddress(dest2, new PublicKey(dest));
+      const tokenDest2 = mes.getAccountKeys().get(instr.accountKeyIndexes[1]);
+      if (!tokenDest2) continue;
+      if (tokenDest.toBase58() === tokenDest2.toBase58()) {
+        const tok = mes.getAccountKeys().get(instr.accountKeyIndexes[4]);
+        if (!tok) continue;
+        accts.push({ account: dest, ephem: ephem.toBase58(), token: tok.toBase58() });
       }
     }
   }
+
+
+
+
+
+
+
+
   return accts;
 }
 /**
