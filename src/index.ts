@@ -10,6 +10,9 @@ import {
   AccountMeta,
   sendAndConfirmRawTransaction,
   Signer,
+  GetVersionedTransactionConfig,
+  VersionedTransactionResponse,
+  BlockheightBasedTransactionConfirmationStrategy,
 } from '@solana/web3.js';
 
 import {
@@ -62,7 +65,6 @@ export class StealthKeys {
     this.privScan = privSp;
     this.privSpend = privSp;
   }
-
 }
 
 function bigIntToHex(bn: BigInt): string {
@@ -72,7 +74,6 @@ function bigIntToHex(bn: BigInt): string {
   }
   return hex;
 }
-
 
 /**
  * Generates address to send stealth transaction to
@@ -164,14 +165,13 @@ export async function receiverGenDest(privScanStr: string, pubSpendStr: string, 
 }
 
 /**
- * Generate scan and spend keys from signature 
+ * Generate scan and spend keys from signature
  *
  * @export
  * @param {Uint8Array} signature
  * @return {*}  {Promise<string[]>}
  */
 export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
-
   const hash = await ed.utils.sha512(signature);
   const privsc = await ed.utils.getExtendedPublicKey(hash.slice(0, 32));
   const privscStr = base58.encode(ed.utils.hexToBytes(bigIntToHex(privsc.scalar)));
@@ -181,12 +181,11 @@ export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
   const privspStr = base58.encode(ed.utils.hexToBytes(bigIntToHex(privsp.scalar)));
   const spendScal = new BN(privsp.scalar.toString());
   const spendPub = ed.Point.BASE.multiply(BigInt(spendScal.toString()));
-  const keys: StealthKeys =
-  {
+  const keys: StealthKeys = {
     pubScan: base58.encode(scanPub.toRawBytes()),
     pubSpend: base58.encode(spendPub.toRawBytes()),
-    privScan: base58.encode(scanScal.toArrayLike(Buffer,"le")),
-    privSpend: base58.encode(spendScal.toArrayLike(Buffer,"le")),
+    privScan: base58.encode(scanScal.toArrayLike(Buffer, 'le')),
+    privSpend: base58.encode(spendScal.toArrayLike(Buffer, 'le')),
   };
 
   return keys;
@@ -203,11 +202,7 @@ export async function genKeys(signature: Uint8Array): Promise<StealthKeys> {
 export async function receiverGenKeyWithSignature(signature: Uint8Array, ephem: string): Promise<string> {
   const keys: StealthKeys = await genKeys(signature);
 
-  return receiverGenKey(
-    keys.privScan,
-    keys.privSpend,
-    ephem,
-  );
+  return receiverGenKey(keys.privScan, keys.privSpend, ephem);
 }
 
 /**
@@ -250,7 +245,6 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
   let bigs = combo * s + r;
   bigs = ed.utils.mod(bigs, ed.CURVE.l);
   const bb = new BN(bigs.toString());
-
 
   const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer, 'le')]);
 
@@ -542,7 +536,6 @@ export async function stealthTokenTransferTransaction2(
   const tx = new Transaction();
   tx.add(createix).add(tix);
 
-
   return tx;
 }
 
@@ -575,12 +568,17 @@ export async function sendFromStealth(
 
   const tx = new Transaction();
   tx.add(tix);
-  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+  let bhash = await connection.getLatestBlockhash();
+  tx.recentBlockhash = bhash.blockhash;
   tx.feePayer = pk;
 
   await signTransaction(tx, key);
+  if(!tx.signature) return "";
+  let b = base58.encode(tx.signature);
 
-  const txid = sendAndConfirmRawTransaction(connection, tx.serialize());
+  let a: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: b, lastValidBlockHeight: bhash.lastValidBlockHeight};
+
+  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), a);
   return txid;
 }
 
@@ -615,19 +613,24 @@ export async function tokenFromStealth(
 
   const tx = new Transaction();
   tx.add(tix);
+  let bhash = await connection.getLatestBlockhash();
+
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
   tx.feePayer = pk;
 
   await signTransaction(tx, key);
+  if(!tx.signature) return "";
+  let b = base58.encode(tx.signature);
 
-  const txid = sendAndConfirmRawTransaction(connection, tx.serialize());
+  let a: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: b, lastValidBlockHeight: bhash.lastValidBlockHeight};
+
+  const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), a);
   return txid;
 }
 
 const fun = (value: PublicKey) => {
   return value.equals(new PublicKey(dksap));
 };
-
 
 /**
  * Checks whether a transaction was sent to the specific user
@@ -646,6 +649,8 @@ export async function scan_check(
   pubSpendStr: string,
 ): Promise<ScanInfo[]> {
   const accts: ScanInfo[] = [];
+  const a = {commitment: 'confirmed', maxSupportedTransactionVersion: 0}; 
+  //const tx = await connection.getTransaction(sig ,{commitment: 'confirmed', maxSupportedTransactionVersion: 0});
   const tx = await connection.getTransaction(sig);
   if (!tx) return accts;
 
