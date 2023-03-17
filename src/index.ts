@@ -244,7 +244,7 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
   bigs = ed.utils.mod(bigs, ed.CURVE.l);
   const bb = new BN(bigs.toString());
 
-  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer, 'le')]);
+  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer, 'le',32)]);
 
   return sig;
 }
