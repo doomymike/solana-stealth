@@ -44,7 +44,7 @@
     "random-bytes-seed": "^1.0.3",
     "seedrandom": "^3.0.5",
     "sha512-crypt-ts": "^0.1.27",
-    "typescript": "^4.9.5"
+    "typescript": "^5.0.1"
   },
   "files": [
     "lib/**/*"
