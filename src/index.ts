@@ -244,7 +244,7 @@ async function genSignature(m: Message, scalar: string, scalar2: string): Promis
   bigs = ed.utils.mod(bigs, ed.CURVE.l);
   const bb = new BN(bigs.toString());
 
-  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer, 'le',32)]);
+  const sig = Buffer.concat([pointr.toRawBytes(), bb.toArrayLike(Buffer, 'le', 32)]);
 
   return sig;
 }
@@ -438,6 +438,48 @@ export async function stealthTokenTransferTransaction(
 }
 
 /**
+ * Sends tokens to a stealth account
+ *
+ * @export
+ * @param {PublicKey} source not the token account
+ * @param {PublicKey} token
+ * @param {string} pubScan
+ * @param {string} pubSpend
+ * @param {number} amount
+ * @return {*}  {Promise<TransactionInstruction>}
+ */
+export async function stealthTokenTransferInstruction(
+  source: PublicKey,
+  token: PublicKey,
+  pubScan: string,
+  pubSpend: string,
+  amount: number,
+): Promise<TransactionInstruction> {
+  const eph = ed.utils.randomPrivateKey();
+
+  const dest = await senderGenAddress(pubScan, pubSpend, base58.encode(eph));
+  const destPub = new PublicKey(dest.toRawBytes());
+  const dksapmeta: AccountMeta = { pubkey: new PublicKey(dksap), isSigner: false, isWritable: false };
+  const ephemmeta: AccountMeta = {
+    pubkey: new PublicKey(await ed.getPublicKey(eph)),
+    isSigner: false,
+    isWritable: false,
+  };
+  const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
+
+  const tokenDest = await getAssociatedTokenAddress(token, destPub);
+
+  const fromToken = await getAssociatedTokenAddress(token, source);
+
+  const tix = createTransferInstruction(fromToken, tokenDest, source, amount);
+
+  tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
+
+
+  return tix;
+}
+
+/**
  * Sends tokens to a recipient's stealth account
  *
  * @export
@@ -571,9 +613,9 @@ export async function sendFromStealth(
   tx.feePayer = pk;
 
   await signTransaction(tx, key);
-  if(!tx.signature) return "";
+  if (!tx.signature) return "";
 
-  const strategy: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: base58.encode(tx.signature), lastValidBlockHeight: bhash.lastValidBlockHeight};
+  const strategy: BlockheightBasedTransactionConfirmationStrategy = { blockhash: bhash.blockhash, signature: base58.encode(tx.signature), lastValidBlockHeight: bhash.lastValidBlockHeight };
 
   const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), strategy);
   return txid;
@@ -616,9 +658,9 @@ export async function tokenFromStealth(
   tx.feePayer = pk;
 
   await signTransaction(tx, key);
-  if(!tx.signature) return "";
+  if (!tx.signature) return "";
 
-  const strategy: BlockheightBasedTransactionConfirmationStrategy = {blockhash: bhash.blockhash, signature: base58.encode(tx.signature), lastValidBlockHeight: bhash.lastValidBlockHeight};
+  const strategy: BlockheightBasedTransactionConfirmationStrategy = { blockhash: bhash.blockhash, signature: base58.encode(tx.signature), lastValidBlockHeight: bhash.lastValidBlockHeight };
 
   const txid = sendAndConfirmRawTransaction(connection, tx.serialize(), strategy);
   return txid;
@@ -645,13 +687,10 @@ export async function scan_check(
   pubSpendStr: string,
 ): Promise<ScanInfo[]> {
   const accts: ScanInfo[] = [];
-  const a = {commitment: 'confirmed', maxSupportedTransactionVersion: 0}; 
-  const tx = await connection.getTransaction(sig ,{commitment: 'confirmed', maxSupportedTransactionVersion: 0});
+  const a = { commitment: 'confirmed', maxSupportedTransactionVersion: 0 };
+  const tx = await connection.getTransaction(sig, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 });
   // const tx = await connection.getTransaction(sig);
   if (!tx) return accts;
-
-
-
 
   const dks = new PublicKey(dksap);
   const mes = tx.transaction.message;
