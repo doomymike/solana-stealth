@@ -11,6 +11,7 @@ import {
   sendAndConfirmRawTransaction,
   Signer,
   BlockheightBasedTransactionConfirmationStrategy,
+  ConfirmedSignaturesForAddress2Options,
 } from '@solana/web3.js';
 
 import {
@@ -437,47 +438,6 @@ export async function stealthTokenTransferTransaction(
   return tx;
 }
 
-/**
- * Sends tokens to a stealth account
- *
- * @export
- * @param {PublicKey} source not the token account
- * @param {PublicKey} token
- * @param {string} pubScan
- * @param {string} pubSpend
- * @param {number} amount
- * @return {*}  {Promise<TransactionInstruction>}
- */
-export async function stealthTokenTransferInstruction(
-  source: PublicKey,
-  token: PublicKey,
-  pubScan: string,
-  pubSpend: string,
-  amount: number,
-): Promise<TransactionInstruction> {
-  const eph = ed.utils.randomPrivateKey();
-
-  const dest = await senderGenAddress(pubScan, pubSpend, base58.encode(eph));
-  const destPub = new PublicKey(dest.toRawBytes());
-  const dksapmeta: AccountMeta = { pubkey: new PublicKey(dksap), isSigner: false, isWritable: false };
-  const ephemmeta: AccountMeta = {
-    pubkey: new PublicKey(await ed.getPublicKey(eph)),
-    isSigner: false,
-    isWritable: false,
-  };
-  const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
-
-  const tokenDest = await getAssociatedTokenAddress(token, destPub);
-
-  const fromToken = await getAssociatedTokenAddress(token, source);
-
-  const tix = createTransferInstruction(fromToken, tokenDest, source, amount);
-
-  tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
-
-
-  return tix;
-}
 
 /**
  * Sends tokens to a recipient's stealth account
@@ -666,10 +626,6 @@ export async function tokenFromStealth(
   return txid;
 }
 
-const fun = (value: PublicKey) => {
-  return value.equals(new PublicKey(dksap));
-};
-
 /**
  * Checks whether a transaction was sent to the specific user
  *
@@ -695,7 +651,7 @@ export async function scan_check(
   const dks = new PublicKey(dksap);
   const mes = tx.transaction.message;
   // const pos = mes.accountKeys.findIndex(fun);
-  const pos = mes.getAccountKeys().staticAccountKeys.findIndex(fun);
+  const pos = mes.getAccountKeys().staticAccountKeys.findIndex((value)=> {return value.equals(new PublicKey(dksap));});
 
   for (const instr of mes.compiledInstructions) {
     if (!instr.accountKeyIndexes.includes(pos)) {
@@ -734,13 +690,6 @@ export async function scan_check(
     }
   }
 
-
-
-
-
-
-
-
   return accts;
 }
 /**
@@ -752,9 +701,10 @@ export async function scan_check(
  * @param {string} pubSpendStr
  * @return {*}  {Promise<ScanInfo[]>}
  */
-export async function scan(connection: Connection, privScanStr: string, pubSpendStr: string): Promise<ScanInfo[]> {
+export async function scan(connection: Connection, privScanStr: string, pubSpendStr: string, 
+  options?: ConfirmedSignaturesForAddress2Options): Promise<ScanInfo[]> {
   let accts: ScanInfo[] = [];
-  const res = await connection.getConfirmedSignaturesForAddress2(new PublicKey(dksap));
+  const res = await connection.getConfirmedSignaturesForAddress2(new PublicKey(dksap),options);
   for (const sig of res) {
     accts = accts.concat(await scan_check(connection, sig.signature, privScanStr, pubSpendStr));
   }
