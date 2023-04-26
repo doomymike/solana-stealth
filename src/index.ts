@@ -1,7 +1,6 @@
 import {
   Connection,
   sendAndConfirmTransaction,
-  Keypair,
   Transaction,
   SystemProgram,
   PublicKey,
@@ -323,7 +322,7 @@ export async function stealthTransferIx(
  *
  * @export
  * @param {Connection} connection
- * @param {Keypair} source
+ * @param {Signer} source
  * @param {string} pubScan
  * @param {string} pubSpend
  * @param {number} amount  amount in lamports to transfer
@@ -331,7 +330,7 @@ export async function stealthTransferIx(
  */
 export async function stealthTransfer(
   connection: Connection,
-  source: Keypair,
+  source: Signer,
   pubScan: string,
   pubSpend: string,
   amount: number,
@@ -349,7 +348,7 @@ export async function stealthTransfer(
  *
  * @export
  * @param {Connection} connection
- * @param {Keypair} source not the token account
+ * @param {Signer} source not the token account
  * @param {PublicKey} token
  * @param {string} pubScan
  * @param {string} pubSpend
@@ -358,35 +357,13 @@ export async function stealthTransfer(
  */
 export async function stealthTokenTransfer(
   connection: Connection,
-  source: Keypair,
+  source: Signer,
   token: PublicKey,
   pubScan: string,
   pubSpend: string,
   amount: number,
 ): Promise<string> {
-  const eph = ed.utils.randomPrivateKey();
-
-  const dest = await senderGenAddress(pubScan, pubSpend, base58.encode(eph));
-  const destPub = new PublicKey(dest.toRawBytes());
-  const dksapmeta: AccountMeta = { pubkey: new PublicKey(dksap), isSigner: false, isWritable: false };
-  const ephemmeta: AccountMeta = {
-    pubkey: new PublicKey(await ed.getPublicKey(eph)),
-    isSigner: false,
-    isWritable: false,
-  };
-  const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
-
-  const tokenDest = await getAssociatedTokenAddress(token, destPub);
-  const createix = createAssociatedTokenAccountInstruction(source.publicKey, tokenDest, destPub, token);
-
-  const fromToken = await getAssociatedTokenAddress(token, source.publicKey);
-
-  const tix = createTransferInstruction(fromToken, tokenDest, source.publicKey, amount);
-
-  tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
-
-  const tx = new Transaction();
-  tx.add(createix).add(tix);
+  const tx = await stealthTokenTransferTransaction(source.publicKey,token,pubScan,pubSpend,amount);
 
   const txid = sendAndConfirmTransaction(connection, tx, [source]);
 
@@ -463,29 +440,7 @@ export async function stealthTokenTransfer2(
   owner: Signer,
   amount: number,
 ): Promise<string> {
-  const eph = ed.utils.randomPrivateKey();
-
-  const dest = await senderGenAddress(pubScan, pubSpend, base58.encode(eph));
-  const destPub = new PublicKey(dest.toRawBytes());
-  const dksapmeta: AccountMeta = { pubkey: new PublicKey(dksap), isSigner: false, isWritable: false };
-  const ephemmeta: AccountMeta = {
-    pubkey: new PublicKey(await ed.getPublicKey(eph)),
-    isSigner: false,
-    isWritable: false,
-  };
-  const tokenMeta: AccountMeta = { pubkey: token, isSigner: false, isWritable: false };
-
-  const tokenDest = await getAssociatedTokenAddress(token, destPub);
-  const createix = createAssociatedTokenAccountInstruction(payer.publicKey, tokenDest, destPub, token);
-
-  const fromToken = await getAssociatedTokenAddress(token, source);
-
-  const tix = createTransferInstruction(fromToken, tokenDest, source, amount);
-
-  tix.keys.push(ephemmeta, tokenMeta, dksapmeta);
-
-  const tx = new Transaction();
-  tx.add(createix).add(tix);
+  const tx = await stealthTokenTransferTransaction2(payer.publicKey,source,token,pubScan,pubSpend,amount);
 
   const txid = sendAndConfirmTransaction(connection, tx, [payer, owner]);
 
