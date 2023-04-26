@@ -284,3 +284,29 @@ In some cases, it can be challenging or not possible to do a stealth transfer (e
 In this case a useful trick is to generate the address and "notify" by sending 0 through a stealth transfer and then use the destination for the regular send. 
 
 Ex.
+
+```javascript
+const notifyIx = await stealthTransferIx(
+    new PublicKey(account.pk),
+    scankey.toBase58(),
+    spendkey.toBase58(),
+    0
+);
+const dest = notifyIx.keys[1].pubkey; // destination stealth account 
+// send normally using this destination
+
+notifyTx = await stealthTokenTransferTransaction(
+    feePayerPk,
+    token,
+    scankey,
+    spendkey,
+    0
+);
+
+const destOwner = notifyTx.instructions[1].keys[1].pubkey; // destination stealth account
+const destToken = await getAssociatedTokenAddress(
+    token,
+    destOwner,
+); // destination stealth associated token account
+
+```
